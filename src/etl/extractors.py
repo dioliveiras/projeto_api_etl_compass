@@ -1,17 +1,18 @@
+# src/etl/extractors.py
 from __future__ import annotations
 
 from datetime import date, timedelta
-import os
-import time
 from typing import Iterable, List
 import httpx
 import pandas as pd
 
-from .config import get_env 
+# importa e já carrega o .env
+from .config import get_env  # noqa: F401
 
 # ---------------- Endpoints
 REST_COUNTRIES_URL = "https://restcountries.com/v3.1/all"
-EXCHANGERATE_TS_URL = "https://api.exchangerate.host/timeseries"
+EXCHANGERATE_TS_URL = "https://api.exchangerate.host/timeframe"  # endpoint atual
+
 
 # ============== REST Countries ==============
 def fetch_countries() -> pd.DataFrame:
@@ -19,7 +20,9 @@ def fetch_countries() -> pd.DataFrame:
     Busca lista de países da API REST Countries e retorna como DataFrame.
     Campos principais: nome, siglas, região, sub-região, moedas.
     """
-    params = {"fields": "name,cca2,cca3,currencies,region,subregion,population,latlng"}
+    params = {
+        "fields": "name,cca2,cca3,currencies,region,subregion,population,latlng"
+    }
     resp = httpx.get(REST_COUNTRIES_URL, params=params, timeout=30)
     resp.raise_for_status()
     data = resp.json()
@@ -69,105 +72,70 @@ def _chunk(lst: List[str], n: int) -> Iterable[List[str]]:
         yield lst[i:i + n]
 
 
-def _need_api_key_hint(err_obj: dict | None) -> bool:
-    msg = (err_obj or {}).get("type") or (err_obj or {}).get("message") or ""
-    msg = str(msg).lower()
-    return "access_key" in msg or "api key" in msg or "apikey" in msg
-
-
 def fetch_timeseries(
     symbols: list[str],
     start_d: date,
     end_d: date,
-    base: str = "USD",
-    api_key: str | None = None,
+    base: str = "USD",          # mantido por compatibilidade; fonte costuma ser USD no plano gratuito
+    api_key: str | None = None, # pode ser passado manualmente; por padrão vem do .env
     max_batch: int = 20,
     timeout_s: int = 60,
-    retries: int = 3,
-    backoff_s: float = 1.5,
 ) -> pd.DataFrame:
     """
-    Busca série histórica de câmbio em lotes (até 20 símbolos por vez).
+    Busca série histórica de câmbio em lotes (até 20 moedas por vez) usando /timeframe.
     Retorna colunas: date (str), currency_code, rate_to_usd (float).
-
-    - Usa chave de API se disponível (param 'access_key' ou env EXCHANGERATE_API_KEY).
-    - Faz retries exponenciais para 429/5xx/timeout.
-    - Valida janela máxima de 365 dias (limite do provedor).
     """
     # saneamento de entrada
     symbols = sorted(set([s.upper() for s in symbols if isinstance(s, str) and len(s) == 3]))
     if not symbols or start_d > end_d:
         return pd.DataFrame(columns=["date", "currency_code", "rate_to_usd"])
-
-    # limite de janela
     if (end_d - start_d).days > 365:
         raise ValueError("Janela máxima para timeseries é 365 dias.")
 
-    # api key (opcional)
-    api_key = 'api_key or os.getenv("EXCHANGERATE_API_KEY") or None'
+    # usa access_key na query (modelo exchangerate.host)
+    api_key = api_key or get_env("EXCHANGERATE_API_KEY") or None
 
     frames: list[pd.DataFrame] = []
     for batch in _chunk(symbols, max_batch):
         params = {
-            "base": base.upper(),
-            "symbols": ",".join(batch),
             "start_date": start_d.isoformat(),
             "end_date": end_d.isoformat(),
+            "currencies": ",".join(batch),   # nome do parâmetro na /timeframe
         }
         if api_key:
-            params["access_key"] = api_key
+            params["access_key"] = api_key  # auth via query param
 
-        attempt = 0
-        while True:
-            attempt += 1
-            try:
-                resp = httpx.get(EXCHANGERATE_TS_URL, params=params, timeout=timeout_s)
-                # Retry em 429/5xx
-                if resp.status_code in (429, 500, 502, 503, 504):
-                    if attempt <= retries:
-                        time.sleep(backoff_s ** attempt)
-                        continue
-                    resp.raise_for_status()
-                resp.raise_for_status()
-                data = resp.json()
+        resp = httpx.get(EXCHANGERATE_TS_URL, params=params, timeout=timeout_s)
+        resp.raise_for_status()
+        data = resp.json()
 
-                # Alguns retornos incluem 'success'
-                if isinstance(data, dict) and data.get("success") is False:
-                    err = data.get("error") or {}
-                    # mensagem amigável para falta de access_key
-                    if _need_api_key_hint(err):
-                        raise RuntimeError(
-                            "exchangerate.host exigiu chave de API. "
-                            "Defina EXCHANGERATE_API_KEY no ambiente ou passe api_key=..."
-                        )
-                    raise RuntimeError(f"exchangerate.host retornou erro: {err}")
+        # Alguns erros vêm como success:false
+        if isinstance(data, dict) and data.get("success") is False:
+            raise RuntimeError(f"exchangerate.host retornou erro: {data.get('error')}")
 
-                rates = (data or {}).get("rates")
-                if not isinstance(rates, dict) or not rates:
-                    # log breve para depuração
-                    sample = str(data)[:300]
-                    raise RuntimeError(f"Resposta sem 'rates' válida. Amostra: {sample}")
+        rows = []
 
-                rows = []
-                for d_str, mapping in rates.items():
-                    for code, val in (mapping or {}).items():
-                        if val is not None:
-                            rows.append({
-                                "date": d_str,
-                                "currency_code": code,
-                                "rate_to_usd": float(val),
-                            })
-                frames.append(pd.DataFrame(rows))
-                break  # saiu do loop de retry após sucesso
+        # 1) Formato currencylayer-like: { ... "source":"USD", "quotes": { "YYYY-MM-DD": {"USDEUR":0.85, ...}, ... } }
+        if isinstance(data, dict) and isinstance(data.get("quotes"), dict):
+            source = (data.get("source") or "USD").upper()
+            for d_str, mapping in data["quotes"].items():
+                for pair, val in (mapping or {}).items():
+                    if isinstance(pair, str) and pair.upper().startswith(source) and val is not None:
+                        code = pair[len(source):].upper()
+                        rows.append({"date": d_str, "currency_code": code, "rate_to_usd": float(val)})
 
-            except (httpx.ReadTimeout, httpx.ConnectTimeout):
-                if attempt <= retries:
-                    time.sleep(backoff_s ** attempt)
-                    continue
-                raise
-            except httpx.HTTPError:
-                # erros não-transientes
-                raise
+        # 2) Formato exchangerate.host clássico: { ... "rates": { "YYYY-MM-DD": {"EUR":0.85, ...}, ... } }
+        elif isinstance(data, dict) and isinstance(data.get("rates"), dict):
+            for d_str, mapping in data["rates"].items():
+                for code, val in (mapping or {}).items():
+                    if val is not None:
+                        rows.append({"date": d_str, "currency_code": code.upper(), "rate_to_usd": float(val)})
+
+        else:
+            sample = str(data)[:300]
+            raise RuntimeError(f"Resposta sem 'quotes' ou 'rates' válida. Amostra: {sample}")
+
+        frames.append(pd.DataFrame(rows))
 
     if not frames:
         return pd.DataFrame(columns=["date", "currency_code", "rate_to_usd"])
@@ -183,9 +151,9 @@ if __name__ == "__main__":
     print(df_map.head())
     print("Total linhas:", len(df_map))
 
-    # 2) Rates de um período curto para 3 moedas conhecidas
+    # 2) Série de câmbio
     end_d = date.today()
-    start_d = end_d - timedelta(days=9)  # últimos ~10 dias
+    start_d = end_d - timedelta(days=9)
     try:
         df_rates = fetch_timeseries(["BRL", "EUR", "JPY"], start_d, end_d, base="USD")
         print("\nRates (amostra):")
