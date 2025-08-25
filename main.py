@@ -12,6 +12,8 @@ if str(PROJECT_ROOT) not in _sys.path:
 
 import argparse
 import logging
+import json
+from datetime import datetime
 import pandas as pd
 
 from src.etl.extractor import fetch_countries
@@ -40,7 +42,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Pipeline ETL: extrai países da REST Countries e grava camadas Bronze e Silver em Parquet."
     )
-    # Saídas (você pode customizar via CLI)
+    # Saídas
     p.add_argument("--bronze-dir", default="data/bronze/countries", help="Diretório de saída Bronze.")
     p.add_argument("--silver-dir", default="data/silver/countries", help="Diretório de saída Silver.")
 
@@ -52,7 +54,8 @@ def parse_args() -> argparse.Namespace:
                    choices=["snappy", "gzip", "brotli", "zstd", "none"], help="Codec de compressão do Parquet.")
 
     # Logs
-    p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Nível de log.")
+    p.add_argument("--log-level", default="INFO",
+                   choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Nível de log.")
     return p.parse_args()
 
 
@@ -62,12 +65,12 @@ def run_pipeline(
     partition_cols: list[str] | None,
     overwrite: bool,
     compression: str,
-) -> tuple[Path, Path]:
+) -> tuple[Path, Path, Path]:
     logger.info("Iniciando pipeline: extractor → transformer → writer (bronze & silver)")
 
     # 1) Extract
     logger.info("Extraindo dados da API REST Countries…")
-    df_raw: pd.DataFrame = fetch_countries()
+    df_raw: pandas.DataFrame = fetch_countries()
     logger.info("Extração concluída. Linhas: %s | Colunas: %s", len(df_raw), list(df_raw.columns))
 
     # 2) Bronze (dados brutos)
@@ -88,11 +91,14 @@ def run_pipeline(
     df_silver, quality = transform_countries(df_raw)
     logger.info("Transformação concluída. Linhas: %s | Colunas: %s", len(df_silver), list(df_silver.columns))
 
-    # Relatório de qualidade (resumo)
-    logger.info("Quality (linhas): %s", quality.get("rows"))
-    logger.info("Quality (nulos por coluna): %s", quality.get("nulls_per_column"))
-    logger.info("Quality (duplicados por cca3): %s", quality.get("duplicate_cca3"))
-    logger.debug("Quality (amostra): %s", quality.get("sample"))
+    # 3.1) Salvar relatório de qualidade em JSON
+    reports_dir = Path("data/_reports")
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    report_path = reports_dir / f"quality_countries_{ts}.json"
+    with open(report_path, "w", encoding="utf-8") as f:
+        json.dump(quality, f, ensure_ascii=False, indent=2)
+    logger.info("Quality report salvo em: %s", report_path)
 
     # 4) Silver (dados tratados)
     logger.info("Gravando camada Silver…")
@@ -106,8 +112,11 @@ def run_pipeline(
     )
     logger.info("Silver gravado em: %s", silver_path)
 
-    logger.info("Pipeline finalizado com sucesso. Bronze: %s | Silver: %s", bronze_path, silver_path)
-    return Path(bronze_path), Path(silver_path)
+    logger.info(
+        "Pipeline finalizado com sucesso. Bronze: %s | Silver: %s | Report: %s",
+        bronze_path, silver_path, report_path
+    )
+    return Path(bronze_path), Path(silver_path), Path(report_path)
 
 
 def main() -> None:

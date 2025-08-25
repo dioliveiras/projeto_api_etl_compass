@@ -1,0 +1,50 @@
+{
+  "rows": 250,
+  "nulls_per_column": {
+    "country_name": 0,
+    "cca2": 0,
+    "cca3": 0,
+    "region": 0,
+    "subregion": 0,
+    "population": 0,
+    "lat": 0,
+    "lng": 0,
+    "currency_code": 3
+  },
+  "duplicate_cca3": 0,
+  "sample": [
+    {
+      "country_name": "Afghanistan",
+      "cca2": "AF",
+      "cca3": "AFG",
+      "region": "Asia",
+      "subregion": "Southern Asia",
+      "population": 40218234,
+      "lat": 33.0,
+      "lng": 65.0,
+      "currency_code": "AFN"
+    },
+    {
+      "country_name": "Albania",
+      "cca2": "AL",
+      "cca3": "ALB",
+      "region": "Europe",
+      "subregion": "Southeast Europe",
+      "population": 2837743,
+      "lat": 41.0,
+      "lng": 20.0,
+      "currency_code": "ALL"
+    },
+    {
+      "country_name": "Algeria",
+      "cca2": "DZ",
+      "cca3": "DZA",
+      "region": "Africa",
+      "subregion": "Northern Africa",
+      "population": 44700000,
+      "lat": 28.0,
+      "lng": 3.0,
+      "currency_code": "DZD"
+    }
+  ]
+}
