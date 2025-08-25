@@ -1,0 +1,16 @@
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.ipynb_checkpoints
+.git
+.gitignore
+dist
+build
+data/**
+
+# manter estrutura, se copiar data/ no build
+!data/
+!data/**/
+!data/**/.gitkeep
