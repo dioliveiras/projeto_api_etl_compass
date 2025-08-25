@@ -30,6 +30,14 @@ projeto_api_etl_compass/
 
 ---
 
+## 🔗 APIs e Endpoints
+REST Countries:
+https://restcountries.com/v3.1/all?fields=name,cca2,cca3,currencies,region,subregion,population,latlng
+
+Exchange Rates:
+https://api.apilayer.com/exchangerates_data/timeseries?base=EUR&symbols=BRL,USD,JPY&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
+
+
 ## ⚙️ Como Executar
 
 ### Windows
