@@ -42,13 +42,7 @@ https://api.apilayer.com/exchangerates_data/timeseries?base=EUR&symbols=BRL,USD,
 ### Windows
 ```powershell
 .
-un.bat
-```
-
-### Linux / Mac
-```bash
-chmod +x run.sh
-./run.sh
+run.bat
 ```
 
 ### Docker (opcional)
