@@ -1,135 +1,78 @@
-# Projeto ETL - API REST Countries 🌍
+# Projeto API ETL Compass
 
-Pipeline simples de **ETL** (Extract, Transform, Load) para consumir dados da API [REST Countries](https://restcountries.com/), transformá-los e salvar em camadas **Bronze** e **Silver** no formato **Parquet**.
+Pipeline de **Extração, Transformação e Carga (ETL)** desenvolvido em Python para consolidar informações de países e suas cotações cambiais em relação ao Euro.  
+Este projeto faz parte da disciplina de **Linguagens de Programação** (Engenharia de Dados - UNIFOR).
 
 ---
 
-## 📂 Estrutura de pastas
+## 🚀 Objetivo
+- Extrair dados da API **REST Countries** e da **Exchange Rates API**.  
+- Transformar e enriquecer os dados (normalização, junção e agregações).  
+- Carregar os resultados em camadas de dados (`bronze`, `silver`, `gold`).  
+- Disponibilizar relatórios para análise em ferramentas de BI (ex.: Power BI).
+
+---
+
+## 📂 Estrutura do Projeto
 
 ```
 projeto_api_etl_compass/
-│── main.py               # Orquestra o pipeline (extract → transform → write)
-│── src/
-│   └── etl/
-│       ├── __init__.py
-│       ├── extractor.py  # Extrai dados da API
-│       ├── transformer.py# Trata e padroniza dados
-│       ├── writer.py     # Salva em Parquet
-│
-│── data/
-│   ├── bronze/           # Dados crus (espelho da API)
-│   └── silver/           # Dados tratados (schema padronizado)
-│
-│── requirements.txt
+│── src/              # Código ETL organizado em pacotes
+│── data/             # Estrutura de dados (bronze, silver, gold, _reports)
+│── run.bat           # Execução rápida (Windows)
+│── run.sh            # Execução rápida (Linux/Mac)
+│── Dockerfile        # (opcional) Build em container
+│── requirements.txt  # Dependências do projeto
+│── README.md         # Este arquivo :)
+```
+
+> 🔹 **Observação:** Arquivos de dados (`.csv`, `.parquet`, etc.) **não são versionados**. Apenas a estrutura de pastas é mantida usando `.gitkeep`.
+
+---
+
+## ⚙️ Como Executar
+
+### Windows
+```powershell
+.un.bat
+```
+
+### Linux / Mac
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+### Docker (opcional)
+```bash
+docker build -t projeto_api_etl .
+docker run --rm -v $(pwd)/data:/app/data projeto_api_etl
 ```
 
 ---
 
-## ⚙️ Configuração do ambiente
+## 📊 Visualização no Power BI
 
-1. Criar e ativar virtualenv:
-```bash
-python -m venv .venv
-.venv\Scripts\activate   # Windows
-source .venv/bin/activate # Linux/Mac
-```
+O resultado do ETL foi analisado no Power BI.  
+Painel construído: **Comparativo Cambial por País em relação ao Euro**.
 
-2. Instalar dependências:
-```bash
-pip install -r requirements.txt
-```
+![Dashboard Power BI](./docs/dashboard.png)
 
-No mínimo você precisa de:
-- `pandas`
-- `pyarrow`
-- `httpx`
+> O arquivo `dashboard.png` foi exportado a partir do Power BI e está em `docs/`.
 
 ---
 
-## ▶️ Executando o pipeline
-
-### 1. Rodar com particionamento por `region` (padrão)
-```bash
-python main.py --overwrite
-```
-- Bronze → `data/bronze/countries/`
-- Silver → `data/silver/countries/`
-
-### 2. Rodar sem particionamento (um único arquivo parquet por camada)
-```bash
-python main.py --partition-cols  --overwrite
-```
-
-### 3. Personalizar diretórios de saída
-```bash
-python main.py --bronze-dir data/bronze/countries                --silver-dir data/silver/countries                --overwrite
-```
+## ✅ Requisitos Atendidos
+- Modularização do código.
+- Orientação a objetos.
+- Tratamento de exceções.
+- Uso de decorators e padrões de projeto.
+- Registro de logs.
+- Estrutura de pacotes Python.
+- Camadas de dados (`bronze`, `silver`, `gold`).
+- Visualização final dos dados no Power BI.
 
 ---
 
-## 🔎 Diferença entre Bronze e Silver
-
-### Bronze
-- Dados **brutos** da API.
-- Possui nulos, tipos inconsistentes e campo `currencies` como dicionário.
-- Exemplo (Brasil):
-```json
-{
-  "country_name": "Brazil",
-  "cca2": "BR",
-  "cca3": "BRA",
-  "region": "Americas",
-  "subregion": "South America",
-  "population": 203062512,
-  "lat": -10.0,
-  "lng": -55.0,
-  "currencies": {"BRL": {"name": "Brazilian real", "symbol": "R$"}}
-}
-```
-
-### Silver
-- Dados **tratados e padronizados**.
-- Colunas com tipos coerentes (`Int64`, `float64`, `string`).
-- Nulos tratados (`region="Unknown"`).
-- Moeda principal extraída para `currency_code`.
-- Exemplo (Brasil):
-```json
-{
-  "country_name": "Brazil",
-  "cca2": "BR",
-  "cca3": "BRA",
-  "region": "Americas",
-  "subregion": "South America",
-  "population": 203062512,
-  "lat": -10.0,
-  "lng": -55.0,
-  "currency_code": "BRL"
-}
-```
-
----
-
-## 📊 Logs de execução
-
-Exemplo de execução:
-
-```
-[2025-08-24 21:37:37] [INFO] etl.main - Iniciando pipeline: extractor → transformer → writer (bronze & silver)
-[2025-08-24 21:37:37] [INFO] etl.main - Extraindo dados da API REST Countries…
-[2025-08-24 21:37:38] [INFO] etl.main - Extração concluída. Linhas: 250 | Colunas: [...]
-[2025-08-24 21:37:38] [INFO] etl.main - Gravando camada Bronze…
-[2025-08-24 21:37:39] [INFO] etl.main - Bronze gravado em: data/bronze/countries
-[2025-08-24 21:37:39] [INFO] etl.main - Transformando dados para Silver…
-[2025-08-24 21:37:39] [INFO] etl.main - Transformação concluída. Linhas: 250 | Colunas: [...]
-[2025-08-24 21:37:39] [INFO] etl.main - Gravando camada Silver…
-[2025-08-24 21:37:39] [INFO] etl.main - Silver gravado em: data/silver/countries
-```
-
----
-
-## 📌 Próximos Passos
-
-- Criar camada **Gold** (métricas e KPIs para análise).
-- Conectar no **Power BI** para dashboards.
-- Adicionar testes unitários.
-- Usar orquestrador (Airflow/Prefect) em ambiente de produção.
+## 👨‍💻 Autor
+Anderson Oliveira – [GitHub](https://github.com/dioliveiras)
