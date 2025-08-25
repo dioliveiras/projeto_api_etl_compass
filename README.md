@@ -1,7 +1,6 @@
 # Projeto API ETL Compass
 
 Pipeline de **Extração, Transformação e Carga (ETL)** desenvolvido em Python para consolidar informações de países e suas cotações cambiais em relação ao Euro.  
-Este projeto faz parte da disciplina de **Linguagens de Programação** (Engenharia de Dados - UNIFOR).
 
 ---
 
