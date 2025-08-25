@@ -57,9 +57,7 @@ docker run --rm -v $(pwd)/data:/app/data projeto_api_etl
 O resultado do ETL foi analisado no Power BI.  
 Painel construído: **Comparativo Cambial por País em relação ao Euro**.
 
-![Dashboard Power BI](./docs/dashboard.png)
-
-> O arquivo `dashboard.png` foi exportado a partir do Power BI e está em `docs/`.
+<img width="1204" height="677" alt="Dashboard" src="https://github.com/user-attachments/assets/9fc3ae51-0521-4a7c-9f16-8288df178a50" />
 
 ---
 
