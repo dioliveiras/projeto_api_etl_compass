@@ -31,15 +31,15 @@ dist/
 build/
 *.egg-info/
 
-# --- Arquivos de configuração sensíveis ---
+# --- Configs sensíveis ---
 .env
 .env.*
 
 # --- Dados ---
-# Ignora tudo em data
+# Ignora tudo dentro de data/
 data/**
 
-# Mas mantém a pasta data e suas subpastas
+# Mantém a pasta data, todas as subpastas e um .gitkeep em cada uma
 !data/
 !data/**/
 !data/**/.gitkeep
